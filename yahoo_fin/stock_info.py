@@ -6,6 +6,40 @@ import re
 import json
 import datetime
 
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
+
+def requests_retry_session(
+    retries=3,
+    backoff_factor=0.3,
+    status_forcelist=(500, 502, 504),
+    session=None,
+):
+    session = session or requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+retry_strategy = Retry(
+    total=3,backoff_factor=0.3,
+    status_forcelist=[429, 500, 502, 503, 504],
+    method_whitelist=["HEAD", "GET", "OPTIONS"]
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+http = requests.Session()
+http.mount("https://", adapter)
+http.mount("http://", adapter)
+
+
 try:
     from requests_html import HTMLSession
 except Exception:
@@ -290,7 +324,8 @@ def get_quote_table(ticker , dict_result = True, headers = {'User-agent': 'Mozil
 
     site = "https://finance.yahoo.com/quote/" + ticker + "?p=" + ticker
     
-    tables = pd.read_html(requests.get(site, headers=headers).text)
+    # tables = pd.read_html(requests.get(site, headers=headers).text)
+    tables = pd.read_html(http.get(site, headers=headers).text)
     
     data = tables[0].append(tables[1])
 
